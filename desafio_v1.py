@@ -35,6 +35,7 @@ class Cliente:
     def realizar_transacao(self, conta, transacao):
         # TODO: validar o número de transações e invalidar a operação se for necessário
         # print("\n@@@ Você excedeu o número de transações permitidas para hoje! @@@")
+        
         transacao.registrar(conta)
 
     def adicionar_conta(self, conta):
@@ -81,11 +82,25 @@ class Conta:
     def historico(self):
         return self._historico
 
+    def validar_numero_transacao_dia(self):
+        dataAtual = datetime.now()
+
+        numero_movimentacoes = len(
+            [transacao for transacao in self.historico.transacoes if (transacao["data"] == dataAtual and (transacao["tipo"] == Saque.__name__ or transacao["tipo"] == Deposito.__name__))]
+        )
+
+        print("numero_movimentacoes=" + str(numero_movimentacoes))
+
+        return numero_movimentacoes >= self._limite_movimentacoes
+
     def sacar(self, valor):
         saldo = self.saldo
         excedeu_saldo = valor > saldo
 
-        if excedeu_saldo:
+        if self.validar_numero_transacao_dia():
+            print("\n@@@ Operação falhou! Número máximo de movimentações por dia excedido. @@@")            
+
+        elif excedeu_saldo:
             print("\n@@@ Operação falhou! Você não tem saldo suficiente. @@@")
 
         elif valor > 0:
@@ -99,39 +114,42 @@ class Conta:
         return False
 
     def depositar(self, valor):
-        if valor > 0:
+        if self.validar_numero_transacao_dia():
+            print("\n@@@ Operação falhou! Número máximo de movimentações por dia excedido. @@@")
+
+        elif valor > 0:
             self._saldo += valor
             print("\n=== Depósito realizado com sucesso! ===")
+            return True
+        
         else:
             print("\n@@@ Operação falhou! O valor informado é inválido. @@@")
-            return False
-
-        return True
-
+            
+        return False
 
 class ContaCorrente(Conta):
-    def __init__(self, numero, cliente, limite=500, limite_saques=3):
+    def __init__(self, numero, cliente, limite=500, limite_movimentacoes=3):
         super().__init__(numero, cliente)
         self._limite = limite
-        self._limite_saques = limite_saques
+        self._limite_movimentacoes = limite_movimentacoes
 
     @classmethod
-    def nova_conta(cls, cliente, numero, limite, limite_saques):
-        return cls(numero, cliente, limite, limite_saques)
+    def nova_conta(cls, cliente, numero, limite, limite_movimentacoes):
+        return cls(numero, cliente, limite, limite_movimentacoes)
 
     def sacar(self, valor):
-        numero_saques = len(
-            [transacao for transacao in self.historico.transacoes if transacao["tipo"] == Saque.__name__]
+        numero_movimentacoes = len(
+            [transacao for transacao in self.historico.transacoes if (transacao["tipo"] == Saque.__name__ or transacao["tipo"] == Deposito.__name__)]
         )
 
         excedeu_limite = valor > self._limite
-        excedeu_saques = numero_saques >= self._limite_saques
+        excedeu_movimentacoes = numero_movimentacoes >= self._limite_movimentacoes
 
         if excedeu_limite:
             print("\n@@@ Operação falhou! O valor do saque excede o limite. @@@")
 
-        elif excedeu_saques:
-            print("\n@@@ Operação falhou! Número máximo de saques excedido. @@@")
+        elif excedeu_movimentacoes:
+            print("\n@@@ Operação falhou! Número máximo de movimentações por dia excedido. @@@")
 
         else:
             return super().sacar(valor)
@@ -159,7 +177,8 @@ class Historico:
             {
                 "tipo": transacao.__class__.__name__,
                 "valor": transacao.valor,
-                "data": datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
+                "data": datetime.now(),
+                "dataHora": datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
             }
         )
 
@@ -307,7 +326,7 @@ def exibir_extrato(clientes):
     tem_transacao = False
     for transacao in conta.historico.gerar_relatorio():
         tem_transacao = True
-        extrato += f"\n{transacao['tipo']}:\n\tR$ {transacao['valor']:.2f}"
+        extrato += f"\n{transacao['tipo']}:\n\t{transacao['dataHora']} - R$ {transacao['valor']:.2f}"
 
     if not tem_transacao:
         extrato = "Não foram realizadas movimentações"
@@ -347,7 +366,7 @@ def criar_conta(numero_conta, clientes, contas):
         return
 
     # NOTE: O valor padrão de limite de saques foi alterado para 50 saques
-    conta = ContaCorrente.nova_conta(cliente=cliente, numero=numero_conta, limite=500, limite_saques=50)
+    conta = ContaCorrente.nova_conta(cliente=cliente, numero=numero_conta, limite=500, limite_movimentacoes=10)
     contas.append(conta)
     cliente.contas.append(conta)
 
