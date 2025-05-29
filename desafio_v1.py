@@ -83,13 +83,11 @@ class Conta:
         return self._historico
 
     def validar_numero_transacao_dia(self):
-        dataAtual = datetime.now()
+        dataAtual = datetime.now().date()
 
         numero_movimentacoes = len(
             [transacao for transacao in self.historico.transacoes if (transacao["data"] == dataAtual and (transacao["tipo"] == Saque.__name__ or transacao["tipo"] == Deposito.__name__))]
         )
-
-        print("numero_movimentacoes=" + str(numero_movimentacoes))
 
         return numero_movimentacoes >= self._limite_movimentacoes
 
@@ -177,7 +175,7 @@ class Historico:
             {
                 "tipo": transacao.__class__.__name__,
                 "valor": transacao.valor,
-                "data": datetime.now(),
+                "data": datetime.now().date(),
                 "dataHora": datetime.now().strftime("%d-%m-%Y %H:%M:%S"),
             }
         )
